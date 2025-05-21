@@ -7,19 +7,21 @@ from PySide2.QtWidgets import (QWidget, QTableWidgetItem, QApplication,
 import cv2
 import numpy as np
 import os
-from SVM import SVMBinaryClassifier
+from comparison import ImageComparator
 
 from sklearn.model_selection import cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from skimage.feature import hog
+from comparison import ImageComparator
 
 
-# class SimplesvmClassifier:
+
+# class SimplecomparatorClassifier:
 #     def __init__(self):
 #         self.X = []  # 特征向量
 #         self.y = []  # 标签
-#         self.model = KNeighborsClassifier(n_neighbors=3)  # 初始化svm模型，默认邻居数为3
+#         self.model = KNeighborsClassifier(n_neighbors=3)  # 初始化comparator模型，默认邻居数为3
 #         self.scaler = StandardScaler()  # 用于数据标准化
 #         self.trained = False
 #
@@ -88,7 +90,7 @@ class Gui(QWidget):
         self.photo_path = ""
         self.mode = "annotation"
 
-        self.svm = SVMBinaryClassifier()
+        self.comparator = ImageComparator(self.training_dir)
         self.ui.photoLabel = self.ui.findChild(QLabel, "photoLabel")
         self.ui.photoLabel.setText("拍摄的照片将显示在这里")
         self.ui.photoLabel.setAlignment(Qt.AlignCenter)
@@ -203,7 +205,7 @@ class Gui(QWidget):
             self.ui.modeButton.setText("切换到标注模式")
             self.ui.resultLabel.setText("当前模式：识别")
             try:
-                accuracy = self.svm.evaluate_accuracy()
+                accuracy = self.comparator.evaluate_accuracy()
                 print(f"模型当前准确度：{accuracy}")
             except ValueError as e:
                 print(e)
@@ -258,13 +260,13 @@ class Gui(QWidget):
         os.rename(self.photo_path, new_path)  # 移动到类别文件夹
 
         # 添加到训练集（使用新路径）
-        self.svm.add_sample(new_path, label)
+        self.comparator.load_training_images()
         self.ui.resultLabel.setText(f"已标注为：{label}，保存至：{new_path}")
         dialog.close()
 
     def perform_recognition(self):
         # 执行识别
-        result = self.svm.predict(self.photo_path)
+        result = self.comparator.predict(self.photo_path)
 
         # 更新结果显示
         result_text = f"识别结果：{result}"
