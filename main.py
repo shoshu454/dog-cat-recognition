@@ -7,6 +7,7 @@ from PySide2.QtWidgets import (QWidget, QTableWidgetItem, QApplication,
 import cv2
 import numpy as np
 import os
+from SVM import SVMBinaryClassifier
 
 from sklearn.model_selection import cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
@@ -14,62 +15,62 @@ from sklearn.preprocessing import StandardScaler
 from skimage.feature import hog
 
 
-class SimpleKNNClassifier:
-    def __init__(self):
-        self.X = []  # 特征向量
-        self.y = []  # 标签
-        self.model = KNeighborsClassifier(n_neighbors=3)  # 初始化KNN模型，默认邻居数为3
-        self.scaler = StandardScaler()  # 用于数据标准化
-        self.trained = False
-
-    def extract_features(self, image_path):
-        """提取HOG特征"""
-        img = cv2.imread(image_path)
-        img = cv2.resize(img, (100, 100))
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        features = hog(gray,
-                       orientations=9,
-                       pixels_per_cell=(8, 8),
-                       cells_per_block=(2, 2),
-                       visualize=False)
-        return features
-
-    def add_sample(self, image_path, label):
-        """添加样本（特征 + 标签）"""
-        features = self.extract_features(image_path)
-        self.X.append(features)
-        self.y.append(label)
-        self.trained = False  # 新增样本后需重新训练
-
-    def train(self):
-        if len(self.X) < 2:
-            raise ValueError("至少需要两个样本才能训练模型")
-
-        X_scaled = self.scaler.fit_transform(self.X)
-        self.model.fit(X_scaled, self.y)
-        self.trained = True
-
-    def predict(self, image_path):
-        """预测样本类别"""
-        if not self.trained:
-            self.train()  # 若未训练则先训练模型
-
-        features = self.extract_features(image_path)
-        features_scaled = self.scaler.transform([features])
-        return self.model.predict(features_scaled)[0]
-
-    def evaluate_accuracy(self):
-        if len(self.X) < 2:
-            raise ValueError("至少需要两个样本才能评估")
-        if not self.trained:
-            self.train()
-
-            # 使用已拟合的scaler进行转换
-        X_scaled = self.scaler.transform(self.X)
-
-        # 使用交叉验证评估模型
-        scores = cross_val_score(self.model, X_scaled, self.y, cv=5)
-        return scores.mean()
+# class SimplesvmClassifier:
+#     def __init__(self):
+#         self.X = []  # 特征向量
+#         self.y = []  # 标签
+#         self.model = KNeighborsClassifier(n_neighbors=3)  # 初始化svm模型，默认邻居数为3
+#         self.scaler = StandardScaler()  # 用于数据标准化
+#         self.trained = False
+#
+#     def extract_features(self, image_path):
+#         """提取HOG特征"""
+#         img = cv2.imread(image_path)
+#         img = cv2.resize(img, (100, 100))
+#         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#         features = hog(gray,
+#                        orientations=9,
+#                        pixels_per_cell=(8, 8),
+#                        cells_per_block=(2, 2),
+#                        visualize=False)
+#         return features
+#
+#     def add_sample(self, image_path, label):
+#         """添加样本（特征 + 标签）"""
+#         features = self.extract_features(image_path)
+#         self.X.append(features)
+#         self.y.append(label)
+#         self.trained = False  # 新增样本后需重新训练
+#
+#     def train(self):
+#         if len(self.X) < 2:
+#             raise ValueError("至少需要两个样本才能训练模型")
+#
+#         X_scaled = self.scaler.fit_transform(self.X)
+#         self.model.fit(X_scaled, self.y)
+#         self.trained = True
+#
+#     def predict(self, image_path):
+#         """预测样本类别"""
+#         if not self.trained:
+#             self.train()  # 若未训练则先训练模型
+#
+#         features = self.extract_features(image_path)
+#         features_scaled = self.scaler.transform([features])
+#         return self.model.predict(features_scaled)[0]
+#
+#     def evaluate_accuracy(self):
+#         if len(self.X) < 2:
+#             raise ValueError("至少需要两个样本才能评估")
+#         if not self.trained:
+#             self.train()
+#
+#             # 使用已拟合的scaler进行转换
+#         X_scaled = self.scaler.transform(self.X)
+#
+#         # 使用交叉验证评估模型
+#         scores = cross_val_score(self.model, X_scaled, self.y, cv=5)
+#         return scores.mean()
 
 class Gui(QWidget):
     def __init__(self):
@@ -87,7 +88,7 @@ class Gui(QWidget):
         self.photo_path = ""
         self.mode = "annotation"
 
-        self.knn = SimpleKNNClassifier()
+        self.svm = SVMBinaryClassifier()
         self.ui.photoLabel = self.ui.findChild(QLabel, "photoLabel")
         self.ui.photoLabel.setText("拍摄的照片将显示在这里")
         self.ui.photoLabel.setAlignment(Qt.AlignCenter)
@@ -202,7 +203,7 @@ class Gui(QWidget):
             self.ui.modeButton.setText("切换到标注模式")
             self.ui.resultLabel.setText("当前模式：识别")
             try:
-                accuracy = self.knn.evaluate_accuracy()
+                accuracy = self.svm.evaluate_accuracy()
                 print(f"模型当前准确度：{accuracy}")
             except ValueError as e:
                 print(e)
@@ -257,13 +258,13 @@ class Gui(QWidget):
         os.rename(self.photo_path, new_path)  # 移动到类别文件夹
 
         # 添加到训练集（使用新路径）
-        self.knn.add_sample(new_path, label)
+        self.svm.add_sample(new_path, label)
         self.ui.resultLabel.setText(f"已标注为：{label}，保存至：{new_path}")
         dialog.close()
 
     def perform_recognition(self):
         # 执行识别
-        result = self.knn.predict(self.photo_path)
+        result = self.svm.predict(self.photo_path)
 
         # 更新结果显示
         result_text = f"识别结果：{result}"
