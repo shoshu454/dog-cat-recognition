@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 import os
 
+from sklearn.model_selection import cross_val_score
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from skimage.feature import hog
@@ -56,6 +57,19 @@ class SimpleKNNClassifier:
         features = self.extract_features(image_path)
         features_scaled = self.scaler.transform([features])
         return self.model.predict(features_scaled)[0]
+
+    def evaluate_accuracy(self):
+        if len(self.X) < 2:
+            raise ValueError("至少需要两个样本才能评估")
+        if not self.trained:
+            self.train()
+
+            # 使用已拟合的scaler进行转换
+        X_scaled = self.scaler.transform(self.X)
+
+        # 使用交叉验证评估模型
+        scores = cross_val_score(self.model, X_scaled, self.y, cv=5)
+        return scores.mean()
 
 class Gui(QWidget):
     def __init__(self):
@@ -187,6 +201,11 @@ class Gui(QWidget):
             self.mode = "recognition"
             self.ui.modeButton.setText("切换到标注模式")
             self.ui.resultLabel.setText("当前模式：识别")
+            try:
+                accuracy = self.knn.evaluate_accuracy()
+                print(f"模型当前准确度：{accuracy}")
+            except ValueError as e:
+                print(e)
 
     def show_annotation_dialog(self):
         dialog = QDialog(self)
