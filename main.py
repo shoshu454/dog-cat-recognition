@@ -8,32 +8,21 @@ import cv2
 import numpy as np
 import os
 
-from sklearn.model_selection import GridSearchCV
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.preprocessing import StandardScaler
 from skimage.feature import hog
-from imblearn.over_sampling import SMOTE
 
 
-class BalancedKNNClassifier:
+class SimpleKNNClassifier:
     def __init__(self):
         self.X = []  # 特征向量
         self.y = []  # 标签
-        self.model = None  # 优化后的模型
-        self.scaler = StandardScaler()  # 数据标准化
-        self.smote = SMOTE(random_state=42)  # 平衡数据集
+        self.model = KNeighborsClassifier(n_neighbors=3)  # 初始化KNN模型，默认邻居数为3
+        self.scaler = StandardScaler()  # 用于数据标准化
         self.trained = False
-        self.best_params = None  # 保存最优参数
-
-        # 定义网格搜索参数范围
-        self.param_grid = {
-            'n_neighbors': [3, 5, 7, 9, 11],  # 邻居数
-            'weights': ['uniform', 'distance'],  # 权重策略
-            'p': [1, 2]  # 距离度量（1:曼哈顿距离，2:欧氏距离）
-        }
 
     def extract_features(self, image_path):
-        """提取HOG特征（可根据需求扩展多特征融合）"""
+        """提取HOG特征"""
         img = cv2.imread(image_path)
         img = cv2.resize(img, (100, 100))
         gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -45,64 +34,28 @@ class BalancedKNNClassifier:
         return features
 
     def add_sample(self, image_path, label):
-        """添加样本（特征+标签）"""
+        """添加样本（特征 + 标签）"""
         features = self.extract_features(image_path)
         self.X.append(features)
         self.y.append(label)
         self.trained = False  # 新增样本后需重新训练
 
-    def train_model(self):
-        """执行训练、平衡数据、网格搜索全流程"""
+    def train(self):
         if len(self.X) < 2:
-            raise ValueError("至少需要2个样本才能训练模型")
+            raise ValueError("至少需要两个样本才能训练模型")
 
-        # 数据标准化
         X_scaled = self.scaler.fit_transform(self.X)
-
-        # 平衡类别分布（处理样本不平衡）
-        X_balanced, y_balanced = self.smote.fit_resample(X_scaled, self.y)
-
-        # 初始化网格搜索
-        grid_search = GridSearchCV(
-            estimator=KNeighborsClassifier(),  # 基模型
-            param_grid=self.param_grid,
-            cv=5,  # 5折交叉验证
-            scoring='accuracy',  # 评估指标：准确率
-            n_jobs=-1  # 使用全部CPU核心加速
-        )
-
-        # 执行网格搜索+训练
-        grid_search.fit(X_balanced, y_balanced)
-
-        # 保存最优模型和参数
-        self.model = grid_search.best_estimator_
-        self.best_params = grid_search.best_params_
+        self.model.fit(X_scaled, self.y)
         self.trained = True
-        print(f"最优参数：{self.best_params}")
-        print(f"最优交叉验证分数：{grid_search.best_score_:.4f}")
 
     def predict(self, image_path):
         """预测样本类别"""
         if not self.trained:
-            self.train_model()  # 首次预测自动触发训练流程
+            self.train()  # 若未训练则先训练模型
 
-        # 提取特征并标准化
         features = self.extract_features(image_path)
         features_scaled = self.scaler.transform([features])
-
-        # 执行预测
-        if self.model:
-            return self.model.predict(features_scaled)[0]
-        else:
-            return "模型未训练完成"
-
-    def get_trained_status(self):
-        """返回模型训练状态和样本数量"""
-        return {
-            "trained": self.trained,
-            "sample_count": len(self.X),
-            "balanced_sample_count": len(self.y) if self.trained else 0
-        }
+        return self.model.predict(features_scaled)[0]
 
 class Gui(QWidget):
     def __init__(self):
@@ -111,10 +64,6 @@ class Gui(QWidget):
         QtFileObj.open(QFile.ReadOnly)
         QtFileObj.close()
         self.ui = QUiLoader().load(QtFileObj)
-
-        # # 设置界面图标
-        # icon = QIcon("yk.ico")
-        # self.ui.setWindowIcon(icon)
         self.ui.pushButton.setText("capture")
         self.ui.pushButton.clicked.connect(self.capture_photo)
 
@@ -124,7 +73,7 @@ class Gui(QWidget):
         self.photo_path = ""
         self.mode = "annotation"
 
-        self.knn = BalancedKNNClassifier()
+        self.knn = SimpleKNNClassifier()
         self.ui.photoLabel = self.ui.findChild(QLabel, "photoLabel")
         self.ui.photoLabel.setText("拍摄的照片将显示在这里")
         self.ui.photoLabel.setAlignment(Qt.AlignCenter)
