@@ -121,7 +121,7 @@ class Gui(QWidget):
         # self.ui.photoLabel.setText("拍摄的照片将显示在这里")
 
     def clear_training_data(self):
-        print("正在清理之前的训练数据...")
+        # print("正在清理之前的训练数据...")
         try:
             if os.path.exists(self.training_dir):
                 # 删除目录下的所有文件和子目录
