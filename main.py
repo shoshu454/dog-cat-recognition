@@ -9,10 +9,6 @@ import numpy as np
 import os
 from comparison import ImageComparator
 
-from sklearn.model_selection import cross_val_score
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.preprocessing import StandardScaler
-from skimage.feature import hog
 from comparison import ImageComparator
 
 
@@ -81,7 +77,7 @@ class Gui(QWidget):
         QtFileObj.open(QFile.ReadOnly)
         QtFileObj.close()
         self.ui = QUiLoader().load(QtFileObj)
-        self.ui.pushButton.setText("capture")
+        self.ui.pushButton.setText("拍照")
         self.ui.pushButton.clicked.connect(self.capture_photo)
 
         self.training_dir = "training_data"  # 训练数据根目录
@@ -155,6 +151,10 @@ class Gui(QWidget):
             self.ui.label.setPixmap(pixmap)
 
     def update_camera_view(self):
+        width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+        self.ui.label.setFixedSize(width, height)
         ret, frame = self.cap.read()
         if ret:
             frame = cv2.flip(frame, 1)
@@ -181,8 +181,8 @@ class Gui(QWidget):
             pixmap = QPixmap(self.photo_path)
             if not pixmap.isNull():
                 scaled_pixmap = pixmap.scaled(
-                    self.ui.photoLabel.width(),
-                    self.ui.photoLabel.height(),
+                    self.ui.photoLabel.width() * 1.2,
+                    self.ui.photoLabel.height() * 1.2,
                     Qt.KeepAspectRatio,
                     Qt.SmoothTransformation
                 )
@@ -209,7 +209,7 @@ class Gui(QWidget):
                 print(f"模型当前准确度：{accuracy}")
             except ValueError as e:
                 print(e)
-
+    
     def show_annotation_dialog(self):
         dialog = QDialog(self)
         dialog.setWindowTitle("标注照片")
